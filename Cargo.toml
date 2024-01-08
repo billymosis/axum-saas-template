@@ -1,0 +1,45 @@
+[package]
+name = "axum-sqlx-auth-session"
+version = "0.1.0"
+edition = "2021"
+publish = false
+authors = [
+    "Billy Priambodo <edo.billy@gmail.com>",
+]
+
+[dependencies]
+futures = "0.3"
+tokio = { version = "1.14.0", features = ["macros", "rt-multi-thread", "signal"] }
+axum = { version = "0.7.3", features = ["tower-log", "macros"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "uuid", "time", "json"] }
+clap = { version = "4.0.0", features = ["derive", "env"] }
+serde = { version = "1.0.130", features = ["derive"] }
+argon2 = "0.5"
+tower = "0.4.11"
+tower-http = { version = "0.5.0", features = [
+    "catch-panic",
+    "compression-full",
+    "sensitive-headers",
+    "timeout",
+    "trace",
+] }
+jwt = "0.15.0"
+hmac = "0.11.0"
+sha2 = "0.9.8"
+time = { version = "0.3", features = ["serde"] }
+uuid = { version = "1.0", features = ["serde", "v4"] }
+anyhow = "1.0.48"
+async-trait = "0.1.51"
+dotenv = "0.15.0"
+env_logger = "0.10.0"
+itertools = "0.12"
+log = "0.4.14"
+rand = "0.8.4"
+thiserror = "1.0.30"
+serde_json = "1.0.111"
+chrono = "0.4"
+tower-cookies = "0.10.0"
+validator = { version = "0.16", features = ["derive"] }
+lazy_static = "1.4.0"
+regex = "1.10.2"
+reqwest = { version = "0.11.23", features = ["json"]}
