@@ -1,5 +1,5 @@
 [package]
-name = "axum-sass-template"
+name = "axum-saas-template"
 version = "0.1.0"
 edition = "2021"
 publish = false
@@ -8,7 +8,6 @@ authors = [
 ]
 
 [dependencies]
-futures = "0.3"
 tokio = { version = "1.14.0", features = ["macros", "rt-multi-thread", "signal"] }
 axum = { version = "0.7.3", features = ["tower-log", "macros"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "uuid", "time", "json"] }
@@ -23,16 +22,12 @@ tower-http = { version = "0.5.0", features = [
     "timeout",
     "trace",
 ] }
-jwt = "0.15.0"
-hmac = "0.11.0"
-sha2 = "0.9.8"
 time = { version = "0.3", features = ["serde"] }
 uuid = { version = "1.0", features = ["serde", "v4"] }
 anyhow = "1.0.48"
 async-trait = "0.1.51"
 dotenv = "0.15.0"
 env_logger = "0.10.0"
-itertools = "0.12"
 log = "0.4.14"
 rand = "0.8.4"
 thiserror = "1.0.30"

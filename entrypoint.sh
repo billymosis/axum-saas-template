@@ -1,4 +1,4 @@
 #!/bin/sh
 
-/app
+/usr/local/bin/axum-saas-template
 exec "$@"
