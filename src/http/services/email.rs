@@ -19,7 +19,7 @@ pub async fn send_verification_email(
         "template_key": &config.email_verification_template_key,
         "from":
         {
-            "address": "noreply@kevoucher.com",
+            "address": &config.email_sender_address,
             "name": "noreply"
         },
         "to":
@@ -74,7 +74,7 @@ pub async fn send_reset_password_email(
          "template_key": &config.email_reset_password_template_key,
          "from":
          {
-             "address": "noreply@kevoucher.com",
+             "address": &config.email_sender_address,
              "name": "noreply"
          },
          "to":
@@ -90,8 +90,8 @@ pub async fn send_reset_password_email(
     "merge_info": {
     "password_reset_link": link,
     "name": email,
-    "team": "kevoucher.com",
-    "product_name": "kevoucher.com",
+    "team": &config.company,
+    "product_name": &config.company,
     "username": username,
     },
 

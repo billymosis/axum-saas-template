@@ -51,4 +51,10 @@ pub struct Config {
 
     #[clap(long, env)]
     pub email_service_url_template: String,
+
+    #[clap(long, env)]
+    pub email_sender_address: String,
+
+    #[clap(long, env)]
+    pub company: String,
 }

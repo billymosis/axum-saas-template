@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  mydb:
+    image: postgres
+    container_name: mydb
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_DB: mydb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: welcome
+  app:
+    env_file:
+      - .env
+    environment:
+      RUST_LOG: debug
+      DATABASE_URL: postgresql://postgres:welcome@mydb:5432/mydb
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: axum
+    ports:
+      - 1234:1234
+    depends_on:
+      - mydb
+    entrypoint: ["/entrypoint.sh"]
+    tty: true

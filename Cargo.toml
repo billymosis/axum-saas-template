@@ -1,5 +1,5 @@
 [package]
-name = "axum-sqlx-auth-session"
+name = "axum-sass-template"
 version = "0.1.0"
 edition = "2021"
 publish = false
