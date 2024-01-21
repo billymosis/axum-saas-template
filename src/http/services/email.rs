@@ -4,7 +4,11 @@ use log::debug;
 use reqwest::Client;
 use serde_json::json;
 
-use crate::{config::Config, http::Error, http::Result};
+use crate::{
+    config::Config,
+    http::Result,
+    http::{models::email::EmailResponse, Error},
+};
 
 pub async fn send_verification_email(
     username: &str,
@@ -34,8 +38,7 @@ pub async fn send_verification_email(
         ],
         "merge_info": {"verifyLink": link,"email": &email},
     }
-
-        );
+    );
     let request = client
         .post(&config.email_service_url_template)
         .header("Accept", "application/json")
@@ -46,9 +49,9 @@ pub async fn send_verification_email(
     match request.send().await {
         Ok(response) => {
             let status = response.status();
-            let text = response.json().await?;
-            debug!("{:?}", text);
             if status.is_success() {
+                let email_response: EmailResponse = response.json().await?;
+                debug!("{:?}", email_response);
                 Ok(())
             } else {
                 Err(Error::Anyhow(anyhow::anyhow!("Error on email service")))
@@ -104,14 +107,13 @@ pub async fn send_reset_password_email(
         .header("Content-Type", "application/json")
         .header("Authorization", &config.email_key)
         .json(body);
-    println!("{:?}", body);
 
     match request.send().await {
         Ok(response) => {
             let status = response.status();
-            let text = response.text().await?;
-            debug!("{:?}", text);
             if status.is_success() {
+                let email_response: EmailResponse = response.json().await?;
+                debug!("{:?}", email_response);
                 Ok(())
             } else {
                 Err(Error::Anyhow(anyhow::anyhow!("Error on email service")))
