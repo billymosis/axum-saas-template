@@ -11,7 +11,7 @@ use tower_cookies::{cookie::SameSite, Cookie, Cookies};
 
 use crate::http::{
     database::{session::Session, user::User},
-    error::Error,
+    error::{Error, FieldError},
     models::{
         auth::{ResetPayload, VerifyResetPasswordPayload},
         user::{LoginPayload, UserRequest, UserResponse},
@@ -100,10 +100,13 @@ async fn verify_email_token(
         .db
         .get_user_from_email_token(&token)
         .await
-        .map_err(|_| Error::unprocessable_entity([("token", "token not found")]))?;
+        .map_err(|_| Error::unprocessable_entity(FieldError::new(None, "token not found")))?;
 
     if user.active_expires < OffsetDateTime::now_utc() {
-        Err(Error::unprocessable_entity([("token", "token expired")]))?
+        Err(Error::unprocessable_entity(FieldError::new(
+            None,
+            "token expired",
+        )))?
     }
 
     state.db.verify_user(&user.user_id).await?;
@@ -122,10 +125,13 @@ async fn verify_reset_password_token(
         .db
         .get_user_from_reset_password_token(&token)
         .await
-        .map_err(|_| Error::unprocessable_entity([("token", "token not found")]))?;
+        .map_err(|_| Error::unprocessable_entity(FieldError::new(None, "token not found")))?;
 
     if user.active_expires < OffsetDateTime::now_utc() {
-        Err(Error::unprocessable_entity([("token", "token expired")]))?
+        Err(Error::unprocessable_entity(FieldError::new(
+            None,
+            "token expired",
+        )))?
     }
 
     let password_hash = hash_password(payload.password).await?;

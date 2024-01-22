@@ -3,10 +3,9 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use log::error;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
 use sqlx::error::DatabaseError;
-use std::borrow::Cow;
-use std::collections::HashMap;
+use validator::{ValidationError, ValidationErrorsKind};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -26,9 +25,7 @@ pub enum Error {
     BadRequest,
 
     #[error("error in the request body")]
-    UnprocessableEntity {
-        errors: HashMap<Cow<'static, str>, Vec<Cow<'static, str>>>,
-    },
+    UnprocessableEntity { errors: Vec<FieldError> },
 
     #[error("an error occurred with the database")]
     Sqlx(#[from] sqlx::Error),
@@ -55,23 +52,41 @@ pub enum Error {
     Anyhow(#[from] anyhow::Error),
 }
 
-impl Error {
-    pub fn unprocessable_entity<K, V>(errors: impl IntoIterator<Item = (K, V)>) -> Self
-    where
-        K: Into<Cow<'static, str>>,
-        V: Into<Cow<'static, str>>,
-    {
-        let mut error_map = HashMap::new();
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FieldError {
+    message: String,
+    domain: Option<String>,
+}
 
-        for (key, val) in errors {
-            error_map
-                .entry(key.into())
-                .or_insert_with(Vec::new)
-                .push(val.into());
+#[derive(Debug, Serialize, Deserialize)]
+struct FieldErrors(Vec<FieldError>);
+
+impl FieldError {
+    pub fn new(domain: Option<&str>, message: &str) -> Self {
+        match domain {
+            Some(val) => FieldError {
+                domain: Some(val.to_owned()),
+                message: message.to_owned(),
+            },
+            None => FieldError {
+                domain: None,
+                message: message.to_owned(),
+            },
         }
-
-        Self::UnprocessableEntity { errors: error_map }
     }
+}
+
+impl Error {
+    pub fn unprocessable_entity(error: FieldError) -> Self {
+        Self::UnprocessableEntity {
+            errors: vec![error],
+        }
+    }
+
+    // pub fn unprocessable_entities(errors: Vec<FieldError>) -> Self {
+    //     Self::UnprocessableEntity { errors }
+    // }
+
     fn status_code(&self) -> StatusCode {
         match self {
             Self::Unauthorized | Self::NotVerified { .. } => StatusCode::UNAUTHORIZED,
@@ -90,22 +105,56 @@ impl Error {
     }
 }
 
+impl From<&ValidationError> for FieldError {
+    fn from(value: &ValidationError) -> Self {
+        Self {
+            message: value
+                .message
+                .clone()
+                .map_or_else(|| "Unknown Error".to_owned(), |x| x.into_owned()),
+            domain: Some(value.code.to_string()),
+        }
+    }
+}
+
 #[derive(serde::Serialize)]
-struct ClientError<T> {
+struct ClientError {
     message: String,
-    errors: T,
+    errors: Option<Vec<FieldError>>,
 }
 
 #[derive(serde::Serialize)]
-struct ClientErrorResponse<T> {
-    error: ClientError<T>,
+struct ClientErrorResponse {
+    error: ClientError,
 }
 
-impl<T> ClientErrorResponse<T> {
-    fn new(errors: T, message: &str) -> Self {
+trait ErrorResponse<T> {
+    fn new(errors: T, message: &str) -> Self;
+}
+
+impl ClientErrorResponse {
+    fn new(errors: FieldError, message: &str) -> Self {
         Self {
             error: ClientError {
-                errors,
+                errors: Some(vec![errors]),
+                message: message.to_owned(),
+            },
+        }
+    }
+
+    fn new_message(message: &str) -> Self {
+        Self {
+            error: ClientError {
+                errors: None,
+                message: message.to_owned(),
+            },
+        }
+    }
+
+    fn new_from_vec(errors: Vec<FieldError>, message: &str) -> Self {
+        Self {
+            error: ClientError {
+                errors: Some(errors),
                 message: message.to_owned(),
             },
         }
@@ -120,7 +169,10 @@ impl IntoResponse for Error {
                 return (
                     self.status_code(),
                     Json(ClientErrorResponse::new(
-                        json!({"email": "Email not verified"}),
+                        FieldError {
+                            message: "Email not verified".to_owned(),
+                            domain: Some("email".to_owned()),
+                        },
                         "Not Verified",
                     )),
                 )
@@ -128,14 +180,12 @@ impl IntoResponse for Error {
             }
 
             Self::UnprocessableEntity { errors } => {
-                #[derive(serde::Serialize)]
-                struct Errors {
-                    errors: HashMap<Cow<'static, str>, Vec<Cow<'static, str>>>,
-                }
-
                 return (
                     StatusCode::UNPROCESSABLE_ENTITY,
-                    Json(ClientErrorResponse::new(errors, "Unprocessable entity")),
+                    Json(ClientErrorResponse::new_from_vec(
+                        errors,
+                        "Unprocessable entity",
+                    )),
                 )
                     .into_response();
             }
@@ -144,7 +194,7 @@ impl IntoResponse for Error {
                 return (
                     self.status_code(),
                     Json(ClientErrorResponse::new(
-                        json!({"auth": "Invalid username or password"}),
+                        FieldError::new(Some("auth"), "Invalid username or password"),
                         "Invalid user credential",
                     )),
                 )
@@ -155,7 +205,7 @@ impl IntoResponse for Error {
                 return (
                     self.status_code(),
                     Json(ClientErrorResponse::new(
-                        json!({"auth": "Not permitted"}),
+                        FieldError::new(Some("auth"), "Not Permitted"),
                         "Unauthorized",
                     )),
                 )
@@ -166,10 +216,7 @@ impl IntoResponse for Error {
                 error!("Database Error: {:?}", e);
                 (
                     self.status_code(),
-                    Json(ClientErrorResponse::new(
-                        e.to_string(),
-                        "Internal server error",
-                    )),
+                    Json(ClientErrorResponse::new_message("Internal server error")),
                 )
                     .into_response()
             }
@@ -178,30 +225,66 @@ impl IntoResponse for Error {
                 error!("Anyhow Error: {:?}", e);
                 (
                     self.status_code(),
-                    Json(ClientErrorResponse::new(
-                        json!({"general": self.to_string()}),
-                        "Error",
+                    Json(ClientErrorResponse::new_message("Internal server error")),
+                )
+                    .into_response()
+            }
+
+            Self::ValidationErrors(ref e) => {
+                let mut messages: Vec<ValidationError> = vec![];
+                for value in e.errors().values() {
+                    match value {
+                        ValidationErrorsKind::Struct(v) => {
+                            let nested_error = v
+                                .field_errors()
+                                .into_values()
+                                .into_iter()
+                                .map(|q| q.clone())
+                                .flatten()
+                                .collect::<Vec<ValidationError>>();
+                            messages.clone_from(&nested_error)
+                        }
+                        ValidationErrorsKind::List(v) => {
+                            for (_, z) in v {
+                                let nested_error = z
+                                    .field_errors()
+                                    .into_values()
+                                    .into_iter()
+                                    .map(|q| q.clone())
+                                    .flatten()
+                                    .collect::<Vec<ValidationError>>()
+                                    .iter()
+                                    .map(|y| y.clone())
+                                    .collect::<Vec<_>>();
+                                messages.clone_from(&nested_error)
+                            }
+                        }
+                        ValidationErrorsKind::Field(v) => messages.clone_from(v),
+                    }
+                }
+                (
+                    self.status_code(),
+                    Json(ClientErrorResponse::new_from_vec(
+                        messages
+                            .iter()
+                            .map(FieldError::from)
+                            .collect::<Vec<FieldError>>(),
+                        "Form error",
                     )),
                 )
                     .into_response()
             }
 
-            Self::ValidationErrors(ref e) => (
-                self.status_code(),
-                Json(ClientErrorResponse::new(e, "Form error")),
-            )
-                .into_response(),
-
             Self::ValidationError(ref e) => (
                 self.status_code(),
-                Json(ClientErrorResponse::new(e, "Form error")),
+                Json(ClientErrorResponse::new(e.into(), "Form error")),
             )
                 .into_response(),
 
             Self::AxumFormRejection(ref e) => (
                 self.status_code(),
                 Json(ClientErrorResponse::new(
-                    json!({"type": e.to_string()}),
+                    FieldError::new(None, &e.to_string()),
                     "Form type error",
                 )),
             )
@@ -209,39 +292,37 @@ impl IntoResponse for Error {
 
             Self::JsonRejection(ref e) => (
                 self.status_code(),
-                Json(ClientErrorResponse::new(e.body_text(), "Form error")),
+                Json(ClientErrorResponse::new(
+                    FieldError::new(Some("json"), &e.body_text()),
+                    "Form error",
+                )),
             )
                 .into_response(),
 
             Self::BadRequest => (
                 self.status_code(),
-                Json(ClientErrorResponse::new(
-                    json!({"payload": "Bad request"}),
-                    "Bad request",
-                )),
+                Json(ClientErrorResponse::new_message("Bad request")),
             )
                 .into_response(),
 
-            Self::ReqwestError(ref e) => (
-                self.status_code(),
-                Json(ClientErrorResponse::new(e.to_string(), "Request error")),
-            )
-                .into_response(),
-
+            Self::ReqwestError(ref e) => {
+                error!("Reqwest Error: {:?}", e);
+                (
+                    self.status_code(),
+                    Json(ClientErrorResponse::new_message("Internal server error")),
+                )
+                    .into_response()
+            }
 
             Self::NotFound => (
                 self.status_code(),
-                Json(ClientErrorResponse::new(
-                    json!({"url": "Not found"}),
-                    "Not found",
-                )),
+                Json(ClientErrorResponse::new_message("Not found")),
             )
                 .into_response(),
 
-
             _ => (
                 (StatusCode::INTERNAL_SERVER_ERROR),
-                Json(ClientErrorResponse::new(json!({}), "Internal server error")),
+                Json(ClientErrorResponse::new_message("Internal server error")),
             )
                 .into_response(),
         }

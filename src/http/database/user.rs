@@ -1,7 +1,7 @@
 use time::OffsetDateTime;
 
 use super::DB;
-use crate::http::error::ResultExt;
+use crate::http::error::{FieldError, ResultExt};
 use crate::http::models::auth::{EmailToken, PasswordToken};
 use crate::http::models::user::UserModel;
 
@@ -47,7 +47,9 @@ impl User for DB {
         .bind(email)
         .fetch_optional(&self.db)
         .await?
-        .ok_or_else(|| Error::unprocessable_entity([("email", "does not exist")]))?;
+        .ok_or_else(|| {
+            Error::unprocessable_entity(FieldError::new(Some("email"), "email does not exist"))
+        })?;
 
         Ok(user)
     }
@@ -69,10 +71,10 @@ impl User for DB {
         .fetch_one(&self.db)
         .await
         .on_constraint("users_username_key", |_| {
-            Error::unprocessable_entity([("username", "username taken")])
+            Error::unprocessable_entity(FieldError::new(Some("username"), "username taken"))
         })
         .on_constraint("users_email_key", |_| {
-            Error::unprocessable_entity([("email", "email taken")])
+            Error::unprocessable_entity(FieldError::new(Some("email"), "email taken"))
         })?;
         Ok(user.id)
     }
