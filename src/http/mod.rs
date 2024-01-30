@@ -1,3 +1,4 @@
+use askama::Template;
 mod controllers;
 mod database;
 mod error;
@@ -5,6 +6,7 @@ mod middleware;
 mod models;
 mod services;
 mod utils;
+mod view;
 
 pub use error::Error;
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -33,7 +35,11 @@ use tower_http::{
 
 use self::controllers::auth::auth_routes;
 use self::database::DB;
-use self::middleware::middleware::{auth_middleware, AuthContext};
+use self::view::HomeTemplate;
+use self::{
+    middleware::middleware::{auth_middleware, AuthContext},
+    view::RootTemplate,
+};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -70,7 +76,20 @@ fn api_router(app_state: AppState) -> Router {
             auth_middleware,
         ))
         .nest("/api", Router::new().nest("/auth", auth_routes(app_state)))
-        .route("/", get(|| async { Html("<div>Hello</div>") }))
+        .nest_service("/assets", tower_http::services::ServeDir::new("assets"))
+        .nest_service(
+            "/favicon.ico",
+            tower_http::services::ServeFile::new("assets/favicon.ico"),
+        )
+        .route(
+            "/",
+            get(|| async {
+                let hello = HomeTemplate {
+                    name: "NGAPO",
+                };
+                hello
+            }),
+        )
         .layer((
             CompressionLayer::new(),
             TraceLayer::new_for_http().on_failure(()),

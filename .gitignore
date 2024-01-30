@@ -4,3 +4,4 @@
 env
 pg_data
 mydb*
+node_modules

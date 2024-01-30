@@ -21,6 +21,7 @@ tower-http = { version = "0.5.0", features = [
     "sensitive-headers",
     "timeout",
     "trace",
+    "fs",
 ] }
 time = { version = "0.3", features = ["serde"] }
 uuid = { version = "1.0", features = ["serde", "v4"] }
@@ -38,3 +39,5 @@ validator = { version = "0.16", features = ["derive"] }
 lazy_static = "1.4.0"
 regex = "1.10.2"
 reqwest = { version = "0.11.23", features = ["json"]}
+askama = { version = "0.12.1", features = ["with-axum"] }
+askama_axum = "0.4.0"
