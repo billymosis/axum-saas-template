@@ -3,3 +3,4 @@
 .sqlx
 env
 pg_data
+mydb*

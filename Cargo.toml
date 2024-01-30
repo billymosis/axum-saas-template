@@ -10,7 +10,7 @@ authors = [
 [dependencies]
 tokio = { version = "1.14.0", features = ["macros", "rt-multi-thread", "signal"] }
 axum = { version = "0.7.3", features = ["tower-log", "macros"] }
-sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "uuid", "time", "json"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "uuid", "time", "json", "sqlite", "chrono"] }
 clap = { version = "4.0.0", features = ["derive", "env"] }
 serde = { version = "1.0.130", features = ["derive"] }
 argon2 = "0.5"
@@ -32,7 +32,7 @@ log = "0.4.14"
 rand = "0.8.4"
 thiserror = "1.0.30"
 serde_json = "1.0.111"
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
 tower-cookies = "0.10.0"
 validator = { version = "0.16", features = ["derive"] }
 lazy_static = "1.4.0"

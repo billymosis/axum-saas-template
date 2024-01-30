@@ -1,9 +1,8 @@
 mod config;
 mod http;
-use anyhow::Context;
 use clap::Parser;
 use config::Config;
-use sqlx::postgres::PgPoolOptions;
+use sqlx::{migrate::MigrateDatabase, Sqlite, SqlitePool};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -13,11 +12,19 @@ async fn main() -> anyhow::Result<()> {
 
     let config = Config::parse();
 
-    let db = PgPoolOptions::new()
-        .max_connections(50)
-        .connect(&config.database_url)
+    if !Sqlite::database_exists(&config.database_url)
         .await
-        .context("could not connect to database_url")?;
+        .unwrap_or(false)
+    {
+        println!("Creating database {}", &config.database_url);
+        match Sqlite::create_database(&config.database_url).await {
+            Ok(_) => println!("Create db success"),
+            Err(error) => panic!("error: {}", error),
+        }
+    } else {
+        println!("Database already exists");
+    }
+    let db = SqlitePool::connect(&config.database_url).await?;
 
     sqlx::migrate!().run(&db).await?;
 

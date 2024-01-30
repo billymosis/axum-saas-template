@@ -5,6 +5,8 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use chrono::Utc;
+use log::error;
 use serde_json::json;
 use time::OffsetDateTime;
 use tower_cookies::{cookie::SameSite, Cookie, Cookies};
@@ -18,9 +20,7 @@ use crate::http::{
     },
     services::email::{send_reset_password_email, send_verification_email},
     utils::{
-        extractor::ValidatedBody,
-        password::{hash_password, verify_password},
-        response_wrapper::JsonData,
+        extractor::ValidatedBody, password::{hash_password, verify_password}, response_wrapper::JsonData, token_generator::generate_verification_token
     },
     AppState,
 };
@@ -32,16 +32,17 @@ async fn register_handler(
 ) -> Result<impl IntoResponse> {
     let password_hash = hash_password(payload.password).await?;
 
+    let user_id = uuid::Uuid::new_v4();
     let id = state
         .db
-        .create_user(&payload.username, &payload.email, &password_hash)
+        .create_user(&user_id, &payload.username, &payload.email, &password_hash)
         .await?;
 
     let expires_time = OffsetDateTime::now_utc().saturating_add(time::Duration::seconds(
         state.config.email_token_time.clone() as i64,
     ));
 
-    let token = &uuid::Uuid::new_v4().to_string();
+    let token = generate_verification_token(8);
 
     state
         .db
@@ -73,7 +74,7 @@ async fn send_reset_token(
         state.config.email_token_time.clone() as i64,
     ));
 
-    let token = uuid::Uuid::new_v4().to_string();
+    let token = generate_verification_token(8);
 
     state
         .db
@@ -100,9 +101,12 @@ async fn verify_email_token(
         .db
         .get_user_from_email_token(&token)
         .await
-        .map_err(|_| Error::unprocessable_entity(FieldError::new(None, "token not found")))?;
+        .map_err(|e| {
+            error!("error: {:?}", e);
+            Error::unprocessable_entity(FieldError::new(None, "token not found"))
+        })?;
 
-    if user.active_expires < OffsetDateTime::now_utc() {
+    if user.active_expires < Utc::now().naive_utc() {
         Err(Error::unprocessable_entity(FieldError::new(
             None,
             "token expired",
@@ -125,9 +129,12 @@ async fn verify_reset_password_token(
         .db
         .get_user_from_reset_password_token(&token)
         .await
-        .map_err(|_| Error::unprocessable_entity(FieldError::new(None, "token not found")))?;
+        .map_err(|e| {
+            error!("error: {:?}", e);
+            Error::unprocessable_entity(FieldError::new(None, "token not found"))
+        })?;
 
-    if user.active_expires < OffsetDateTime::now_utc() {
+    if user.active_expires < Utc::now().naive_utc() {
         Err(Error::unprocessable_entity(FieldError::new(
             None,
             "token expired",
@@ -164,7 +171,12 @@ async fn login_handler(
 
     let result = state
         .db
-        .create_session(user.id, json!({"settings": "DUMMY"}), expires_time)
+        .create_session(
+            uuid::Uuid::new_v4(),
+            user.id,
+            json!({"settings": "DUMMY"}),
+            expires_time,
+        )
         .await?;
 
     let session = Cookie::build(("session_id", result.id.to_string()))

@@ -4,18 +4,26 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use validator::Validate;
+use time::OffsetDateTime;
+
+#[derive(FromRow, Debug, Deserialize, Serialize)]
+pub struct EmailTokenX {
+    pub id: String,
+    pub active_expires: chrono::NaiveDateTime,
+    pub user_id: String,
+}
 
 #[derive(FromRow, Debug, Deserialize, Serialize)]
 pub struct EmailToken {
     pub id: String,
-    pub active_expires: sqlx::types::time::OffsetDateTime,
+    pub active_expires: chrono::NaiveDateTime,
     pub user_id: uuid::Uuid,
 }
 
 #[derive(FromRow, Debug, Deserialize, Serialize)]
 pub struct PasswordToken {
     pub id: String,
-    pub active_expires: sqlx::types::time::OffsetDateTime,
+    pub active_expires: chrono::NaiveDateTime,
     pub user_id: uuid::Uuid,
 }
 

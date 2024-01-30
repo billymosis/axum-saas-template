@@ -1,8 +1,10 @@
+use std::str::FromStr;
+
 use time::OffsetDateTime;
 
 use super::DB;
 use crate::http::error::{FieldError, ResultExt};
-use crate::http::models::auth::{EmailToken, PasswordToken};
+use crate::http::models::auth::{EmailToken, EmailTokenX, PasswordToken};
 use crate::http::models::user::UserModel;
 
 use crate::http::{Error, Result};
@@ -11,6 +13,7 @@ pub trait User {
     async fn find_user_by_email(&self, email: &str) -> Result<UserModel>;
     async fn create_user(
         &self,
+        user_id: &uuid::Uuid,
         username: &str,
         email: &str,
         password_hash: &str,
@@ -56,27 +59,29 @@ impl User for DB {
 
     async fn create_user(
         &self,
+        user_id: &uuid::Uuid,
         username: &str,
         email: &str,
         password_hash: &str,
     ) -> Result<uuid::Uuid> {
-        let user = sqlx::query!(
+        sqlx::query!(
             r#"
-        insert into users (username, email, password_hash) values ($1, $2, $3) returning id 
+        insert into users (id, username, email, password_hash) values (?, ?, ?, ?)
         "#,
+            user_id,
             username,
             email,
             password_hash
         )
-        .fetch_one(&self.db)
+        .execute(&self.db)
         .await
-        .on_constraint("users_username_key", |_| {
+        .on_constraint("users.username", |_| {
             Error::unprocessable_entity(FieldError::new(Some("username"), "username taken"))
         })
-        .on_constraint("users_email_key", |_| {
+        .on_constraint("users.email", |_| {
             Error::unprocessable_entity(FieldError::new(Some("email"), "email taken"))
         })?;
-        Ok(user.id)
+        Ok(*user_id)
     }
 
     async fn insert_verification_token(
@@ -86,7 +91,7 @@ impl User for DB {
         user_id: &uuid::Uuid,
     ) -> Result<()> {
         sqlx::query!(
-            r#"insert into email_verification_token (id, active_expires, user_id) values ($1, $2, $3)"#,
+            r#"insert into email_verification_token (id, active_expires, user_id) values (?, ?, ?)"#,
             token,
             expires,
             user_id,
@@ -136,7 +141,7 @@ impl User for DB {
     async fn get_user_from_email_token(&self, token: &str) -> Result<EmailToken> {
         let row = sqlx::query_as!(
             EmailToken,
-            r#"select * from email_verification_token where id = ($1)"#,
+            r#"select id, active_expires, user_id as "user_id: uuid::Uuid" from email_verification_token where id = ?"#,
             token,
         )
         .fetch_one(&self.db)
@@ -147,8 +152,8 @@ impl User for DB {
     async fn get_user_from_reset_password_token(&self, token: &str) -> Result<PasswordToken> {
         let row = sqlx::query_as!(
             PasswordToken,
-            r#"select * from password_reset_token where id = ($1)"#,
-            token,
+            r#"select id, active_expires, user_id as "user_id: uuid::Uuid" from password_reset_token where id = $1"#,
+            token
         )
         .fetch_one(&self.db)
         .await?;

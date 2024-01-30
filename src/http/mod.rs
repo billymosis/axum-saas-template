@@ -17,7 +17,7 @@ use axum::{
     routing::get,
     Router,
 };
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use std::{
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
@@ -42,7 +42,7 @@ pub struct AppState {
     pub reqwest: reqwest::Client,
 }
 
-pub async fn serve(config: Config, db: PgPool) -> anyhow::Result<()> {
+pub async fn serve(config: Config, db: SqlitePool) -> anyhow::Result<()> {
     let client = reqwest::Client::builder()
         .build()
         .expect("Failed to create reqwest client");

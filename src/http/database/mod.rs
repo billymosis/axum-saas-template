@@ -3,11 +3,11 @@ pub mod session;
 
 #[derive(Clone)]
 pub struct DB {
-    pub db: sqlx::PgPool,
+    pub db: sqlx::SqlitePool,
 }
 
 impl DB {
-    pub fn new(pool: sqlx::PgPool) -> Self {
+    pub fn new(pool: sqlx::SqlitePool) -> Self {
         Self { db: pool }
     }
 }

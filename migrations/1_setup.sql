@@ -1,24 +1,30 @@
-create extension if not exists "uuid-ossp";
-create or replace function set_updated_at()
-    returns trigger as
-$$
-begin
-    NEW.updated_at = now();
-    return NEW;
-end;
-$$ language plpgsql;
+CREATE TABLE IF NOT EXISTS users (
+  id BLOB PRIMARY KEY NOT NULL,
+  username TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  email_verified BOOLEAN NOT NULL DEFAULT 0,
+  password_hash TEXT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
-create or replace function trigger_updated_at(tablename regclass)
-    returns void as
-$$
-begin
-    execute format('CREATE TRIGGER set_updated_at
-        BEFORE UPDATE
-        ON %s
-        FOR EACH ROW
-        WHEN (OLD is distinct from NEW)
-    EXECUTE FUNCTION set_updated_at();', tablename);
-end;
-$$ language plpgsql;
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY NOT NULL,
+  user_id BLOB REFERENCES users(id),
+  data JSON,
+  expiry_date DATETIME NOT NULL
+);
 
-create collation case_insensitive (provider = icu, locale = 'und-u-ks-level2', deterministic = false);
+CREATE TABLE IF NOT EXISTS email_verification_token (
+  id TEXT PRIMARY KEY NOT NULL,
+  active_expires DATETIME NOT NULL,
+  user_id BLOB NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE NO ACTION ON DELETE NO ACTION
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_token (
+  id TEXT PRIMARY KEY NOT NULL,
+  active_expires DATETIME NOT NULL,
+  user_id BLOB NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE NO ACTION ON DELETE NO ACTION
+);

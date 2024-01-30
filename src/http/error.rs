@@ -163,7 +163,7 @@ impl ClientErrorResponse {
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        error!("{:?}", self);
+        error!("\n\nSELF: {:?}", self);
         match self {
             Self::NotVerified => {
                 return (
@@ -180,6 +180,7 @@ impl IntoResponse for Error {
             }
 
             Self::UnprocessableEntity { errors } => {
+                println!("BILLY: {:?}", errors);
                 return (
                     StatusCode::UNPROCESSABLE_ENTITY,
                     Json(ClientErrorResponse::new_from_vec(
@@ -359,9 +360,7 @@ where
         map_err: impl FnOnce(Box<dyn DatabaseError>) -> Error,
     ) -> Result<T, Error> {
         self.map_err(|e| match e.into() {
-            Error::Sqlx(sqlx::Error::Database(dbe)) if dbe.constraint() == Some(name) => {
-                map_err(dbe)
-            }
+            Error::Sqlx(sqlx::Error::Database(dbe)) if dbe.message().contains(name) => map_err(dbe),
             e => e,
         })
     }
